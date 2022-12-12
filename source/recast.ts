@@ -59,13 +59,12 @@ export function recastTopLevelModule({
             const importSpecifiers = importSymbols.map(([importId, localId]): ts.ImportSpecifier => {
                 const lId = nodeFactor.createIdentifier(localId);
                 if (importId === localId) {
-                    return nodeFactor.createImportSpecifier(undefined, lId);
+                    return nodeFactor.createImportSpecifier(false, undefined, lId);
                 } else {
-                    return nodeFactor.createImportSpecifier(nodeFactor.createIdentifier(importId), lId);
+                    return nodeFactor.createImportSpecifier(false, nodeFactor.createIdentifier(importId), lId);
                 }
             });
             statements.push(nodeFactor.createImportDeclaration(
-                undefined, // decorators
                 undefined, // modifiers
                 nodeFactor.createImportClause(
                     false,
@@ -79,25 +78,23 @@ export function recastTopLevelModule({
         rModule.interopRecord.forEach((interop) => {
             if (interop.exports.length !== 0) {
                 statements.push(nodeFactor.createExportDeclaration(
-                    undefined, // decorators
                     undefined, // modifiers
                     false, // isTypeOnly
                     nodeFactor.createNamedExports(interop.exports.map(({ importName, asName }) => asName === importName ?
-                        nodeFactor.createExportSpecifier(undefined, nodeFactor.createIdentifier(importName)):
-                        nodeFactor.createExportSpecifier(nodeFactor.createIdentifier(importName), nodeFactor.createIdentifier(asName)))),
+                        nodeFactor.createExportSpecifier(false, undefined, nodeFactor.createIdentifier(importName)):
+                        nodeFactor.createExportSpecifier(false, nodeFactor.createIdentifier(importName), nodeFactor.createIdentifier(asName)))),
                     nodeFactor.createStringLiteral(interop.specifier),
                 ));
             }
             if (interop.imports.length !== 0) {
                 statements.push(nodeFactor.createImportDeclaration(
-                    undefined, // decorators
                     undefined, // modifiers
                     nodeFactor.createImportClause(
                         false,
                         undefined, // default import name
                         nodeFactor.createNamedImports(interop.imports.map(({ importName, asName }) => asName === importName ?
-                        nodeFactor.createImportSpecifier(undefined, nodeFactor.createIdentifier(importName)):
-                            nodeFactor.createImportSpecifier(nodeFactor.createIdentifier(importName), nodeFactor.createIdentifier(asName)))), // namespace import or named imports, or no
+                        nodeFactor.createImportSpecifier(false, undefined, nodeFactor.createIdentifier(importName)):
+                            nodeFactor.createImportSpecifier(false, nodeFactor.createIdentifier(importName), nodeFactor.createIdentifier(asName)))), // namespace import or named imports, or no
                     ),
                     nodeFactor.createStringLiteral(interop.specifier),
                 ));
@@ -109,14 +106,12 @@ export function recastTopLevelModule({
         // See:
         // https://github.com/microsoft/TypeScript/issues/19545
         statements.push(nodeFactor.createExportDeclaration(
-            undefined, // decorators
             undefined, // modifiers
             false, // isTypeOnly,
             nodeFactor.createNamedExports([]),
         ));
 
         const moduleDeclaration = nodeFactor.createModuleDeclaration(
-            undefined, // decorators
             [nodeFactor.createModifier(ts.SyntaxKind.DeclareKeyword)],
             nodeFactor.createStringLiteral(rModule.entity.name),
             nodeFactor.createModuleBlock(statements),
@@ -148,7 +143,6 @@ export function recastTopLevelModule({
         if (namespaceTraits) {
             const childrenEntityStatements = recastNamespaceTraits(namespaceTraits);
             const namespaceDeclaration = nodeFactor.createModuleDeclaration(
-                undefined, // decorators
                 [nodeFactor.createModifier(ts.SyntaxKind.ExportKeyword)], // TODO: recastModifiers(moduleDeclaration.modifiers),
                 nodeFactor.createIdentifier(rEntity.name),
                 nodeFactor.createModuleBlock(childrenEntityStatements),
@@ -175,18 +169,16 @@ export function recastTopLevelModule({
         namespaceTraits.transformAliasExports();
         if (namespaceTraits.selfExports.length !== 0) {
             statements.push(nodeFactor.createExportDeclaration(
-                undefined, // decorators
                 undefined, // modifiers
                 false, // isTypeOnly
                 nodeFactor.createNamedExports(namespaceTraits.selfExports.map(({ importName, asName }) => asName === importName ?
-                    nodeFactor.createExportSpecifier(undefined, nodeFactor.createIdentifier(importName)):
-                    nodeFactor.createExportSpecifier(nodeFactor.createIdentifier(importName), nodeFactor.createIdentifier(asName)))),
+                    nodeFactor.createExportSpecifier(false, undefined, nodeFactor.createIdentifier(importName)):
+                    nodeFactor.createExportSpecifier(false, nodeFactor.createIdentifier(importName), nodeFactor.createIdentifier(asName)))),
                 undefined,
             ));
         }
         for (const { where, importName, asName } of namespaceTraits.selfExportsFromNamespaces) {
             statements.push(nodeFactor.createImportEqualsDeclaration(
-                undefined, // decorators
                 [nodeFactor.createModifier(ts.SyntaxKind.ExportKeyword)], // modifiers
                 false,
                 nodeFactor.createIdentifier(asName),
@@ -197,7 +189,6 @@ export function recastTopLevelModule({
         nameResolver.leave();
         if (namespaceTraits.neNamespace) {
             const neNsDeclaration = nodeFactor.createModuleDeclaration(
-                undefined, // decorators,
                 [nodeFactor.createModifier(ts.SyntaxKind.ExportKeyword)],
                 nodeFactor.createIdentifier(namespaceTraits.neNamespace.trait.entity.name),
                 nodeFactor.createModuleBlock(namespaceTraits.neNamespace.statements),
@@ -305,7 +296,9 @@ export function recastTopLevelModule({
             return recastTypeAliasDeclaration(declaration, newName, forceExport);
         } else if (ts.isVariableDeclaration(declaration)) {
             return nodeFactor.createVariableStatement(
-                recastDeclarationModifiers(declaration, forceExport),
+                ts.isVariableStatement(declaration.parent.parent) ? 
+                    recastDeclarationModifiers(declaration.parent.parent, forceExport) : 
+                    undefined,
                 nodeFactor.createVariableDeclarationList(
                     [recastVariableDeclaration(declaration, newName, forceExport)],
                     declaration.parent.flags,
@@ -320,7 +313,6 @@ export function recastTopLevelModule({
     function recastSourceFileDeclarationAsNamespaceDeclaration(sourceFile: ts.SourceFile, newName: string) {
         const newBody = nodeFactor.createModuleBlock(recastStatements(sourceFile.statements));
         return nodeFactor.createModuleDeclaration(
-            undefined, // decorators
             undefined,
             nodeFactor.createIdentifier(newName),
             newBody,
@@ -342,7 +334,6 @@ export function recastTopLevelModule({
         }
 
         return nodeFactor.createModuleDeclaration(
-            undefined, // decorators
             recastDeclarationModifiers(moduleDeclaration, true),
             nodeFactor.createIdentifier(newName),
             newBody,
@@ -352,7 +343,6 @@ export function recastTopLevelModule({
 
     function recastFunctionDeclaration(functionDeclaration: ts.FunctionDeclaration, newName: string, forceExport: boolean) {
         return nodeFactor.createFunctionDeclaration(
-            undefined,
             recastModifiers(functionDeclaration.modifiers),
             functionDeclaration.asteriskToken,
             newName,
@@ -419,8 +409,7 @@ export function recastTopLevelModule({
 
     function recastPropertyDeclaration(propertyDeclaration: ts.PropertyDeclaration) {
         return copyComments(propertyDeclaration, nodeFactor.createPropertyDeclaration(
-            undefined,
-            recastModifiers(propertyDeclaration.modifiers),
+            recastModifiers(nodeFactor.createNodeArray(ts.getModifiers(propertyDeclaration))),
             recastPropertyName(propertyDeclaration.name),
             recastToken(propertyDeclaration.questionToken),
             recastTypeNode(propertyDeclaration.type),
@@ -430,8 +419,7 @@ export function recastTopLevelModule({
 
     function recastMethodDeclaration(methodDeclaration: ts.MethodDeclaration) {
         return copyComments(methodDeclaration, (nodeFactor.createMethodDeclaration(
-            undefined,
-            recastModifiers(methodDeclaration.modifiers),
+            recastModifiers(nodeFactor.createNodeArray(ts.getModifiers(methodDeclaration))),
             recastToken(methodDeclaration.asteriskToken),
             recastPropertyName(methodDeclaration.name),
             recastToken(methodDeclaration.questionToken),
@@ -444,7 +432,6 @@ export function recastTopLevelModule({
 
     function recastConstructorDeclaration(constructorDeclaration: ts.ConstructorDeclaration) {
         return copyComments(constructorDeclaration, (nodeFactor.createConstructorDeclaration(
-            undefined,
             recastModifiers(constructorDeclaration.modifiers),
             recastParameterArray(constructorDeclaration.parameters), // parameters
             undefined,
@@ -453,8 +440,7 @@ export function recastTopLevelModule({
 
     function recastParameter(parameter: ts.ParameterDeclaration) {
         return nodeFactor.createParameterDeclaration(
-            undefined,
-            recastModifiers(parameter.modifiers),
+            recastModifiers(nodeFactor.createNodeArray(ts.getModifiers(parameter))),
             recastToken(parameter.dotDotDotToken),
             parameter.name.getText(),
             recastToken(parameter.questionToken),
@@ -477,6 +463,7 @@ export function recastTopLevelModule({
 
     function recastTypeParameter(typeParameter: ts.TypeParameterDeclaration) {
         return nodeFactor.createTypeParameterDeclaration(
+            undefined,
             typeParameter.name.getText(),
             recastTypeNode(typeParameter.constraint),
             recastTypeNode(typeParameter.default),
@@ -568,8 +555,7 @@ export function recastTopLevelModule({
             } else if (ts.isGetAccessor(element)) {
                 // Since TS 3.7
                 classElements.push(copyComments(element, nodeFactor.createGetAccessorDeclaration(
-                    undefined, // decorators
-                    recastModifiers(element.modifiers), // modifiers
+                    recastModifiers(nodeFactor.createNodeArray(ts.getModifiers(element))), // modifiers
                     recastPropertyName(element.name), // name
                     recastParameterArray(element.parameters), // parameters
                     recastTypeNode(element.type), // type
@@ -578,8 +564,7 @@ export function recastTopLevelModule({
             } else if (ts.isSetAccessor(element)) {
                 // Since TS 3.7
                 classElements.push(copyComments(element, nodeFactor.createSetAccessorDeclaration(
-                    undefined, // decorators
-                    recastModifiers(element.modifiers), // modifiers
+                    recastModifiers(nodeFactor.createNodeArray(ts.getModifiers(element))), // modifiers
                     recastPropertyName(element.name), // name
                     recastParameterArray(element.parameters), // parameters
                     undefined, // body
@@ -589,7 +574,6 @@ export function recastTopLevelModule({
             }
         }
         return nodeFactor.createClassDeclaration(
-            undefined,
             recastDeclarationModifiers(classDeclaration, forceExport),
             newName,
             recastTypeParameterArray(classDeclaration.typeParameters),
@@ -599,16 +583,16 @@ export function recastTopLevelModule({
     }
 
     function isPrivateMember(classElement: ts.ClassElement) {
-        if (!classElement.modifiers) {
+        const modifiers = ts.canHaveModifiers(classElement) ? ts.getModifiers(classElement) : undefined;
+        if (!modifiers) {
             return false;
         }
-        return classElement.modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword);
+        return modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword);
     }
 
     function recastInterfaceDeclaration(
         interfaceDeclaration: ts.InterfaceDeclaration, newName: string, forceExport: boolean) {
         return nodeFactor.createInterfaceDeclaration(
-            undefined,
             recastDeclarationModifiers(interfaceDeclaration, forceExport),
             newName,
             recastTypeParameterArray(interfaceDeclaration.typeParameters),
@@ -678,7 +662,6 @@ export function recastTopLevelModule({
 
     function recastEnumDeclaration(enumDeclaration: ts.EnumDeclaration, newName: string, forceExport: boolean) {
         return nodeFactor.createEnumDeclaration(
-            undefined,
             recastDeclarationModifiers(enumDeclaration, forceExport),
             newName,
             enumDeclaration.members.map((enumerator) => {
@@ -693,7 +676,6 @@ export function recastTopLevelModule({
     function recastTypeAliasDeclaration(
         typeAliasDeclaration: ts.TypeAliasDeclaration, newName: string, forceExport: boolean) {
         return nodeFactor.createTypeAliasDeclaration(
-            undefined,
             recastDeclarationModifiers(typeAliasDeclaration, forceExport),
             newName,
             recastTypeParameterArray(typeAliasDeclaration.typeParameters),
@@ -724,8 +706,10 @@ export function recastTopLevelModule({
     }
 
     function recastDeclarationModifiers(declaration: ts.Declaration | ts.VariableStatement, forceExport: boolean): ts.Modifier[] | undefined {
-        let modifiers = recastModifiers(declaration.modifiers)?.filter((m) => m.kind !== ts.SyntaxKind.DeclareKeyword);
-        
+        if (!ts.canHaveModifiers(declaration)) {
+            return [];
+        }
+        let modifiers = recastModifiers(nodeFactor.createNodeArray(ts.getModifiers(declaration))).filter((m) => m.kind !== ts.SyntaxKind.DeclareKeyword);
         if (forceExport) {
             if (!modifiers) {
                 modifiers = [];
@@ -789,6 +773,7 @@ export function recastTopLevelModule({
             );
         } else if (ts.isConstructorTypeNode(type)) {
             return nodeFactor.createConstructorTypeNode(
+                undefined,
                 recastTypeParameterArray(type.typeParameters),
                 recastParameterArray(type.parameters), // parameters
                 recastTypeNode(type.type),
@@ -870,6 +855,7 @@ export function recastTopLevelModule({
                 recastTypeNode(type.nameType),
                 recastToken(type.questionToken),
                 recastTypeNode(type.type),
+                undefined
             );
         } else if (ts.isInferTypeNode(type)) {
             return nodeFactor.createInferTypeNode(
@@ -1069,6 +1055,7 @@ export function recastTopLevelModule({
             if (resolveResult.module) {
                 return nodeFactor.createImportTypeNode(
                     nodeFactor.createLiteralTypeNode(nodeFactor.createStringLiteral(resolveResult.module.name)), // arguments(module specifier)
+                    undefined,
                     typeName,
                     typeArguments,
                     isTypeOf,
@@ -1150,7 +1137,7 @@ export function recastTopLevelModule({
             return;
         }
 
-        if (declarations.some((declaration) => {
+        if (declarations.every((declaration) => {
             const sourceFile = declaration.getSourceFile();
             return program.isSourceFileDefaultLibrary(sourceFile) ||
                 program.isSourceFileFromExternalLibrary(sourceFile);
