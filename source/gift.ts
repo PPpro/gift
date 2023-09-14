@@ -125,14 +125,38 @@ export function rollupTypes(options: IOptions) {
     function createTscOptions(): ts.CompilerOptions {
         return {
             rootDir,
+            moduleResolution: ts.ModuleResolutionKind.Node16,
         };
     }
 
     function createProgram(): ts.Program {
         const tscOptions = createTscOptions();
+        const host = ts.createCompilerHost(tscOptions);
+        host.resolveModuleNames = (moduleNames, importer): (ts.ResolvedModule | undefined)[] => {
+            const resolvedModules: (ts.ResolvedModule | undefined)[] = [];
+            for (const mName of moduleNames) {
+                if (mName === '@module-query/env') {
+                    resolvedModules.push({resolvedFileName: ps.join('c:/Users/PP/Desktop/ccbuild/test/test-engine-source/packages/@module-query/env/src/index.ts')});
+                } else if (mName === '@module-query/env/editor') {
+                    resolvedModules.push({resolvedFileName: ps.join('c:/Users/PP/Desktop/ccbuild/test/test-engine-source/packages/@module-query/env/src/editor-export/env.ts')});
+                } else if (mName === '@module-query/env/internal') {
+                    resolvedModules.push({resolvedFileName: ps.join('c:/Users/PP/Desktop/ccbuild/test/test-engine-source/packages/@module-query/env/src/internal-export/env.ts')});
+                } else {
+                    const r = ts.resolveModuleName(mName, importer, tscOptions, host);
+                    if (r.resolvedModule) {
+                        resolvedModules.push({resolvedFileName: r.resolvedModule.resolvedFileName});
+                    } else {
+                        console.log(`cannot resolve module ${mName}.`);
+                        resolvedModules.push(undefined);
+                    }
+                }
+            }
+            return resolvedModules;
+        };
         return ts.createProgram({
             rootNames: inputs,
             options: tscOptions,
+            host,
         });
     }
 
@@ -246,6 +270,7 @@ export function rollupTypes(options: IOptions) {
             }
 
             for (const declaration of declarations) {
+                // @ts-ignore
                 const scopeSymbols = typeChecker.getSymbolsInScope(declaration, -1);
                 for (const scopeSymbol of scopeSymbols) {
                     const declarations = scopeSymbol.getDeclarations();
